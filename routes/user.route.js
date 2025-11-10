@@ -25,11 +25,11 @@ const {
 router.get('/auth/google', rateLimitAuth(), initiateGoogleLogin);
 
 /**
- * @route   POST /api/auth/google/callback
- * @desc    Handle Google OAuth callback
+ * @route   GET /api/auth/google/callback
+ * @desc    Handle Google OAuth redirect (from Google)
  * @access  Public
  */
-router.post('/auth/google/callback', rateLimitAuth(), handleGoogleCallback);
+router.get('/auth/google/callback', handleGoogleCallback);
 
 /**
  * @route   POST /api/auth/refresh

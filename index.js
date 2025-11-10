@@ -4,6 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser'); // ✅ ADD THIS LINE
 const connectDB = require('./configs/db.config');
 const userRoutes = require('./routes/user.route');
 const { errorHandler, notFoundHandler } = require('./middlewares/error.handler');
@@ -19,11 +20,12 @@ connectDB();
 // Helmet - Set security headers
 app.use(helmet());
 
-// CORS Configuration
 const corsOptions = {
   origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  credentials: true,
-  optionsSuccessStatus: 200
+  credentials: true, // ✅ IMPORTANT: Allow cookies
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 };
 app.use(cors(corsOptions));
 
@@ -41,6 +43,9 @@ app.use('/api', limiter);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// ✅ ADD COOKIE PARSER - AFTER BODY PARSING
+app.use(cookieParser());
 
 // ============ Logging Middleware ============
 

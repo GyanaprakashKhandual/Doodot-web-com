@@ -24,22 +24,34 @@ const initiateGoogleLogin = async (req, res, next) => {
 };
 
 /**
- * Handle Google OAuth callback
- * @route POST /api/auth/google/callback
+ * Handle Google OAuth callback - UPDATED VERSION
+ * @route GET /api/auth/google/callback
  */
 const handleGoogleCallback = async (req, res, next) => {
   try {
-    const { code } = req.body;
+    const { code, state, error } = req.query;
 
+    // Handle Google errors
+    if (error) {
+      return res.redirect(
+        `http://localhost:3000/?error=${encodeURIComponent(error)}`
+      );
+    }
+
+    // Check if code exists
     if (!code) {
-      throw new ApiError(400, 'Authorization code is required');
+      return res.redirect(
+        `http://localhost:3000/?error=${encodeURIComponent('No authorization code provided')}`
+      );
     }
 
     // Get tokens and user info from Google
     const { userInfo } = await getGoogleTokensAndUser(code);
 
     if (!userInfo || !userInfo.sub || !userInfo.email) {
-      throw new ApiError(400, 'Failed to retrieve user information from Google');
+      return res.redirect(
+        `http://localhost:3000/?error=${encodeURIComponent('Failed to retrieve user information from Google')}`
+      );
     }
 
     // Check if user exists
@@ -62,7 +74,6 @@ const handleGoogleCallback = async (req, res, next) => {
         await sendWelcomeEmail(user.email, user.name);
       } catch (emailError) {
         console.error('Failed to send welcome email:', emailError);
-        // Don't fail the registration if email fails
       }
     } else {
       // Update last login
@@ -81,30 +92,29 @@ const handleGoogleCallback = async (req, res, next) => {
     // Save refresh token to user
     await user.addRefreshToken(tokens.refreshToken);
 
-    // Prepare user response (exclude sensitive data)
-    const userResponse = {
-      id: user._id,
-      email: user.email,
-      name: user.name,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      profilePicture: user.profilePicture,
-      isEmailVerified: user.isEmailVerified
-    };
+    // ✅ SET TOKENS IN HTTP-ONLY COOKIES
+    res.cookie('accessToken', tokens.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000 // 15 minutes
+    });
 
-    res.json(new ApiResponse(
-      200,
-      {
-        user: userResponse,
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken
-      },
-      user.createdAt.getTime() === user.updatedAt.getTime() 
-        ? 'Account created successfully' 
-        : 'Login successful'
-    ));
+    res.cookie('refreshToken', tokens.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
+    // ✅ REDIRECT DIRECTLY TO /app (NOT /auth/callback)
+    return res.redirect('http://localhost:3000/app');
+
   } catch (error) {
-    next(error);
+    console.error('Google callback error:', error);
+    return res.redirect(
+      `http://localhost:3000/?error=${encodeURIComponent('Authentication failed')}`
+    );
   }
 };
 
@@ -179,6 +189,10 @@ const logout = async (req, res, next) => {
       // Remove refresh token
       await user.removeRefreshToken(refreshToken);
     }
+
+    // ✅ CLEAR COOKIES ON LOGOUT
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
 
     res.json(new ApiResponse(200, null, 'Logged out successfully'));
   } catch (error) {
@@ -270,6 +284,10 @@ const deleteUserAccount = async (req, res, next) => {
     user.isActive = false;
     user.refreshTokens = [];
     await user.save();
+
+    // ✅ CLEAR COOKIES ON ACCOUNT DELETION
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
 
     res.json(new ApiResponse(200, null, 'Account deactivated successfully'));
   } catch (error) {
