@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser'); // ✅ ADD THIS LINE
 const connectDB = require('./configs/db.config');
 const userRoutes = require('./routes/user.route');
+const todoRoutes = require('./routes/todo.route');
 const { errorHandler, notFoundHandler } = require('./middlewares/error.handler');
 
 // Initialize Express app
@@ -70,6 +71,7 @@ app.get('/health', (req, res) => {
 // ============ API Routes ============
 
 app.use('/api', userRoutes);
+app.use('/api', todoRoutes);
 
 // ============ Error Handling ============
 
